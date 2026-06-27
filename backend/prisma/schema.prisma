@@ -1,0 +1,497 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String         @id @default(uuid())
+  name           String
+  email          String         @unique
+  password       String
+  role           Role           @default(AGENT)
+  team           Team?          @relation(fields: [teamId], references: [id])
+  teamId         String?
+  contacts       Contact[]      @relation("contactOwner")
+  tickets        Ticket[]       @relation("ticketOwner")
+  deals          Deal[]
+  activities     Activity[]
+  notifications  Notification[]
+  auditLogs      AuditLog[]     @relation("auditUser")
+  ticketComments TicketComment[]
+  refreshTokens  RefreshToken[]
+  knowledgeBaseArticles KnowledgeBaseArticle[]
+  files          File[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  deletedAt      DateTime?      @db.Timestamp(6)
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  AGENT
+  CLIENT
+  VIEWER
+}
+
+model Team {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  members     User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Company {
+  id            String       @id @default(uuid())
+  name          String
+  industry      String?
+  website       String?
+  phone         String?
+  address       String?
+  city          String?
+  state         String?
+  country       String?
+  postalCode    String?
+  revenue       Float?
+  contacts      Contact[]
+  tickets       Ticket[]
+  activities    Activity[]
+  contracts     Contract[]
+  invoices      Invoice[]
+  assets        Asset[]
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?    @db.Timestamp(6)
+}
+
+model Contact {
+  id           String      @id @default(uuid())
+  company      Company     @relation(fields: [companyId], references: [id])
+  companyId    String
+  owner        User?       @relation("contactOwner", fields: [ownerId], references: [id])
+  ownerId      String?
+  firstName    String
+  lastName     String
+  email        String
+  phone        String?
+  jobTitle     String?
+  role         String?
+  tags         Tag[]       @relation("ContactTags")
+  deals        Deal[]
+  tickets      Ticket[]
+  invoices     Invoice[]
+  activities   Activity[]
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?   @db.Timestamp(6)
+}
+
+model Pipeline {
+  id          String          @id @default(uuid())
+  name        String
+  description String?
+  stages      PipelineStage[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  deletedAt   DateTime?       @db.Timestamp(6)
+}
+
+model PipelineStage {
+  id          String  @id @default(uuid())
+  pipeline    Pipeline @relation(fields: [pipelineId], references: [id])
+  pipelineId  String
+  name        String
+  order       Int
+  isWon       Boolean @default(false)
+  isLost      Boolean @default(false)
+  deals       Deal[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Deal {
+  id           String         @id @default(uuid())
+  title        String
+  description  String?
+  value        Float
+  probability  Int            @default(0)
+  stage        PipelineStage  @relation(fields: [stageId], references: [id])
+  stageId      String
+  contact      Contact        @relation(fields: [contactId], references: [id])
+  contactId    String
+  owner        User?          @relation(fields: [ownerId], references: [id])
+  ownerId      String?
+  status       DealStatus     @default(OPEN)
+  closeDate    DateTime?
+  activities   Activity[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  deletedAt    DateTime?      @db.Timestamp(6)
+}
+
+enum DealStatus {
+  OPEN
+  WON
+  LOST
+  CLOSED
+}
+
+model SLAPolicy {
+  id              String    @id @default(uuid())
+  name            String    @unique
+  responseMinutes Int
+  resolutionMinutes Int
+  businessHours   Boolean   @default(true)
+  description     String?
+  tickets         Ticket[]
+  contracts       Contract[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Ticket {
+  id                 String         @id @default(uuid())
+  reference          String         @unique
+  subject            String
+  description        String?
+  priority           TicketPriority @default(MEDIUM)
+  status             TicketStatus   @default(OPEN)
+  company            Company        @relation(fields: [companyId], references: [id])
+  companyId          String
+  contact            Contact        @relation(fields: [contactId], references: [id])
+  contactId          String
+  owner              User?          @relation("ticketOwner", fields: [ownerId], references: [id])
+  ownerId            String?
+  slaPolicy          SLAPolicy      @relation(fields: [slaPolicyId], references: [id])
+  slaPolicyId        String
+  responseDueAt      DateTime?
+  resolutionDueAt    DateTime?
+  breachedAt         DateTime?
+  comments           TicketComment[]
+  activities         Activity[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  deletedAt          DateTime?      @db.Timestamp(6)
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+  ESCALATED
+}
+
+model TicketComment {
+  id         String   @id @default(uuid())
+  ticket     Ticket   @relation(fields: [ticketId], references: [id])
+  ticketId   String
+  author     User?    @relation(fields: [authorId], references: [id])
+  authorId   String?
+  message    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Invoice {
+  id              String        @id @default(uuid())
+  reference       String        @unique
+  company         Company       @relation(fields: [companyId], references: [id])
+  companyId       String
+  contact         Contact?      @relation(fields: [contactId], references: [id])
+  contactId       String?
+  issueDate       DateTime
+  dueDate         DateTime
+  status          InvoiceStatus @default(DRAFT)
+  subtotal        Float         @default(0)
+  taxTotal        Float         @default(0)
+  discountTotal   Float         @default(0)
+  total           Float         @default(0)
+  amountPaid      Float         @default(0)
+  amountDue       Float         @default(0)
+  items           InvoiceItem[]
+  payments        Payment[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?     @db.Timestamp(6)
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+model InvoiceItem {
+  id          String   @id @default(uuid())
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id])
+  invoiceId   String
+  description String
+  quantity    Int      @default(1)
+  unitPrice   Float
+  discount    Float    @default(0)
+  tax         Float    @default(0)
+  total       Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Payment {
+  id          String    @id @default(uuid())
+  invoice     Invoice   @relation(fields: [invoiceId], references: [id])
+  invoiceId   String
+  amount      Float
+  method      PaymentMethod
+  reference   String?
+  receivedAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CREDIT_CARD
+  CASH
+  CHEQUE
+  OTHER
+}
+
+model Contract {
+  id             String      @id @default(uuid())
+  reference      String      @unique
+  title          String
+  description    String?
+  company        Company     @relation(fields: [companyId], references: [id])
+  companyId      String
+  slaPolicy      SLAPolicy   @relation(fields: [slaPolicyId], references: [id])
+  slaPolicyId    String
+  startDate      DateTime
+  endDate        DateTime
+  value          Float
+  status         ContractStatus @default(ACTIVE)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  deletedAt      DateTime?   @db.Timestamp(6)
+}
+
+enum ContractStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model Asset {
+  id             String    @id @default(uuid())
+  name           String
+  type           AssetType
+  serialNumber   String?
+  manufacturer   String?
+  model          String?
+  assignedTo     Company?  @relation(fields: [companyId], references: [id])
+  companyId      String?
+  assignedAt     DateTime?
+  warrantyEndsAt DateTime?
+  status         AssetStatus @default(ACTIVE)
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime? @db.Timestamp(6)
+}
+
+enum AssetType {
+  HARDWARE
+  SOFTWARE
+  LICENSE
+  OTHER
+}
+
+enum AssetStatus {
+  ACTIVE
+  INACTIVE
+  RETIRED
+  MAINTENANCE
+}
+
+model Activity {
+  id           String    @id @default(uuid())
+  type         ActivityType
+  summary      String
+  notes        String?
+  user         User      @relation(fields: [userId], references: [id])
+  userId       String
+  company      Company?  @relation(fields: [companyId], references: [id])
+  companyId    String?
+  contact      Contact?  @relation(fields: [contactId], references: [id])
+  contactId    String?
+  deal         Deal?     @relation(fields: [dealId], references: [id])
+  dealId       String?
+  ticket       Ticket?   @relation(fields: [ticketId], references: [id])
+  ticketId     String?
+  communications Communication[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  NOTE
+  TASK
+}
+
+model Communication {
+  id          String    @id @default(uuid())
+  type        CommunicationType
+  subject     String
+  body        String
+  sender      String
+  recipient   String
+  sentAt      DateTime  @default(now())
+  status      CommunicationStatus @default(SENT)
+  activity    Activity? @relation(fields: [activityId], references: [id])
+  activityId  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+enum CommunicationType {
+  EMAIL
+  SMS
+  CHAT
+}
+
+enum CommunicationStatus {
+  DRAFT
+  SENT
+  FAILED
+  RECEIVED
+}
+
+model EmailTemplate {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  subject     String
+  body        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model KnowledgeBaseCategory {
+  id          String                 @id @default(uuid())
+  name        String
+  description String?
+  articles    KnowledgeBaseArticle[]
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+}
+
+model KnowledgeBaseArticle {
+  id          String                   @id @default(uuid())
+  category    KnowledgeBaseCategory    @relation(fields: [categoryId], references: [id])
+  categoryId  String
+  title       String
+  content     String
+  isPublic    Boolean                  @default(true)
+  createdBy   User?                    @relation(fields: [createdById], references: [id])
+  createdById String?
+  views       Int                      @default(0)
+  helpful     Int                      @default(0)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+}
+
+model Notification {
+  id          String    @id @default(uuid())
+  user        User      @relation(fields: [userId], references: [id])
+  userId      String
+  title       String
+  message     String
+  type        NotificationType
+  isRead      Boolean   @default(false)
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  ALERT
+  TASK
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  user        User      @relation("auditUser", fields: [userId], references: [id])
+  userId      String
+  action      String
+  resource    String
+  resourceId  String?
+  changes     Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+}
+
+model File {
+  id          String    @id @default(uuid())
+  filename    String
+  originalName String
+  mimeType    String
+  size        Int
+  uploader    User?     @relation(fields: [uploadedById], references: [id])
+  uploadedById String?
+  url         String
+  createdAt   DateTime  @default(now())
+}
+
+model Setting {
+  id          String    @id @default(uuid())
+  key         String    @unique
+  value       String
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Webhook {
+  id          String    @id @default(uuid())
+  name        String
+  url         String
+  event       String
+  secret      String?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Tag {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  contacts    Contact[] @relation("ContactTags")
+}
+
+model RefreshToken {
+  id          String    @id @default(uuid())
+  token       String    @unique
+  user        User      @relation(fields: [userId], references: [id])
+  userId      String
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+}
