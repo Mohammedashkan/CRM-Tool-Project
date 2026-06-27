@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosHeaders } from 'axios';
 import { getAuthTokens } from '../utils/storage';
 
 const api = axios.create({
@@ -12,10 +12,8 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const authTokens = getAuthTokens();
   if (authTokens?.accessToken) {
-    config.headers = {
-      ...config.headers,
-      Authorization: `Bearer ${authTokens.accessToken}`
-    };
+    config.headers = new AxiosHeaders(config.headers);
+    config.headers.set('Authorization', `Bearer ${authTokens.accessToken}`);
   }
   return config;
 });
