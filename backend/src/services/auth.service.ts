@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
+import { Role } from '@prisma/client';
 import { prisma } from '../utils/prismaClient';
 import { config } from '../config';
 
@@ -7,7 +8,7 @@ const ACCESS_TOKEN_EXPIRES_IN = config.jwtAccessExpiry;
 const REFRESH_TOKEN_EXPIRES_IN = config.jwtRefreshExpiry;
 
 export class AuthService {
-  static async register(payload: { email: string; password: string; name: string; role?: string }) {
+  static async register(payload: { email: string; password: string; name: string; role?: Role }) {
     const existing = await prisma.user.findUnique({ where: { email: payload.email } });
     if (existing) {
       const error = new Error('Email already registered');
@@ -21,7 +22,7 @@ export class AuthService {
         email: payload.email,
         password: hashedPassword,
         name: payload.name,
-        role: payload.role || 'Agent'
+        role: payload.role || Role.AGENT
       }
     });
 
